@@ -1,0 +1,392 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets= ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+} 
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  password     String
+  name         String
+  phone        String?
+  role         String    @default("EMPLOYEE") // SUPER_ADMIN, ADMIN, MANAGER, ACCOUNTANT, VENDOR, CONTRACTOR, EMPLOYEE, CUSTOMER
+  status       String    @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  avatar       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  vendor       Vendor?
+  contractor   Contractor?
+  employee     Employee?
+  customer     Customer?
+  transactions Transaction[] @relation("CreatedTransactions")
+  approvedTxns Transaction[] @relation("ApprovedTransactions")
+  notifications Notification[]
+  auditLogs    AuditLog[]
+}
+
+model Customer {
+  id               String        @id @default(uuid())
+  userId           String?       @unique
+  user             User?         @relation(fields: [userId], references: [id])
+  name             String
+  phone            String
+  email            String?
+  address          String?
+  city             String?
+  state            String?
+  projectType      String?
+  propertyLocation String?
+  budget           Float?        @default(0)
+  requirement      String?
+  status           String        @default("ACTIVE")
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  leads            Lead[]
+  projects         Project[]
+  transactions     Transaction[]
+}
+
+model Lead {
+  id                   String           @id @default(uuid())
+  leadNumber           String           @unique
+  customerName         String
+  phone                String
+  email                String?
+  projectLocation      String
+  constructionType     String
+  budget               Float            @default(0)
+  plotSize             String?
+  requirement          String?
+  preferredContactTime String?
+  status               String           @default("NEW") // NEW, PENDING, ASSIGNED, CONTACTED, INTERESTED, QUOTATION_SENT, NEGOTIATION, CONVERTED, REJECTED, CLOSED
+  source               String           @default("WEBSITE_INQUIRY")
+  rejectionReason      String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  customerId           String?
+  customer             Customer?        @relation(fields: [customerId], references: [id])
+
+  assignedVendorId     String?
+  assignedVendor       Vendor?          @relation(fields: [assignedVendorId], references: [id])
+
+  assignments          LeadAssignment[]
+}
+
+model LeadAssignment {
+  id              String    @id @default(uuid())
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  vendorId        String
+  vendor          Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  status          String    @default("PENDING") // PENDING, ACCEPTED, REJECTED, EXPIRED
+  assignedAt      DateTime  @default(now())
+  respondedAt     DateTime?
+  rejectionReason String?
+  createdAt       DateTime  @default(now())
+}
+
+model Vendor {
+  id              String           @id @default(uuid())
+  userId          String?          @unique
+  user            User?            @relation(fields: [userId], references: [id])
+  vendorName      String
+  companyName     String
+  contactPerson   String
+  mobileNumber    String
+  email           String
+  address         String
+  city            String
+  serviceAreas    String           // comma separated or JSON string
+  specialization  String           // e.g. "Civil Construction, Interior, Structural"
+  gstNumber       String?
+  panNumber       String?
+  bankName        String?
+  accountNumber   String?
+  ifscCode        String?
+  status          String           @default("APPROVED") // PENDING_APPROVAL, APPROVED, REJECTED, SUSPENDED
+  rating          Float            @default(5.0)
+  priority        Int              @default(1)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  documents       VendorDocument[]
+  assignedLeads   Lead[]
+  leadAssignments LeadAssignment[]
+  projects        Project[]
+  transactions    Transaction[]
+  expenses        Expense[]
+}
+
+model VendorDocument {
+  id          String    @id @default(uuid())
+  vendorId    String
+  vendor      Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  docType     String    // GST_CERTIFICATE, PAN_CARD, CANCELLED_CHEQUE, LICENSE, OTHER
+  title       String
+  fileUrl     String
+  status      String    @default("VERIFIED") // PENDING, VERIFIED, REJECTED
+  verifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model Contractor {
+  id             String        @id @default(uuid())
+  userId         String?       @unique
+  user           User?         @relation(fields: [userId], references: [id])
+  name           String
+  companyName    String?
+  phone          String
+  email          String?
+  specialization String        // Masonry, Electrical, Plumbing, Carpentry, Painting
+  labourCount    Int           @default(5)
+  dailyRate      Float         @default(0)
+  status         String        @default("ACTIVE")
+  address        String?
+  city           String?
+  bankDetails    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  projects       Project[]
+  transactions   Transaction[]
+  expenses       Expense[]
+  attendances    Attendance[]
+}
+
+model Employee {
+  id            String       @id @default(uuid())
+  userId        String?      @unique
+  user          User?        @relation(fields: [userId], references: [id])
+  name          String
+  email         String       @unique
+  phone         String
+  roleTitle     String       // Site Engineer, Project Manager, Accountant, Supervisor
+  department    String       // Operations, Finance, Engineering, HR
+  salary        Float        @default(0)
+  joiningDate   DateTime     @default(now())
+  status        String       @default("ACTIVE")
+  address       String?
+  city          String?
+  panNumber     String?
+  aadharNumber  String?
+  advanceAmount Float        @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  attendances   Attendance[]
+}
+
+model Project {
+  id                     String                @id @default(uuid())
+  projectCode            String                @unique
+  name                   String
+  customerId             String?
+  customer               Customer?             @relation(fields: [customerId], references: [id])
+  vendorId               String?
+  vendor                 Vendor?               @relation(fields: [vendorId], references: [id])
+  contractorId           String?
+  contractor             Contractor?           @relation(fields: [contractorId], references: [id])
+  location               String
+  projectType            String                // Residential, Commercial, Industrial, Renovation
+  budget                 Float                 @default(0)
+  startDate              DateTime?
+  expectedCompletionDate DateTime?
+  actualCompletionDate   DateTime?
+  status                 String                @default("STARTED") // PLANNING, STARTED, IN_PROGRESS, ON_HOLD, COMPLETED, CANCELLED
+  progressPercent        Int                   @default(0)
+  description            String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  progressLogs           ProjectProgress[]
+  transactions           Transaction[]
+  expenses               Expense[]
+  materialConsumptions   MaterialConsumption[]
+}
+
+model ProjectProgress {
+  id           String    @id @default(uuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date         DateTime  @default(now())
+  title        String
+  description  String
+  percentage   Int       @default(0)
+  sitePhotos   String?   // JSON string of image URLs
+  materialUsed String?
+  labourCount  Int       @default(0)
+  weather      String?
+  notes        String?
+  reportedBy   String?
+  createdAt    DateTime  @default(now())
+}
+
+model Account {
+  id            String        @id @default(uuid())
+  name          String        // Main Cash, HDFC Bank, ICICI Bank, Petty Cash
+  type          String        // CASH, BANK
+  accountNumber String?
+  bankName      String?
+  balance       Float         @default(0)
+  isDefault     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  transactions  Transaction[]
+}
+
+model Transaction {
+  id                String                 @id @default(uuid())
+  transactionNumber String                 @unique
+  type              String                 // DEPOSIT, WITHDRAWAL
+  category          String                 // Customer Payment, Advance, Material Purchase, Labour Payment, Contractor Payment, etc.
+  amount            Float                  @default(0)
+  paymentMethod     String                 // CASH, BANK_TRANSFER, CHEQUE, UPI, RTGS_NEFT
+  accountId         String
+  account           Account                @relation(fields: [accountId], references: [id])
+  
+  customerId        String?
+  customer          Customer?              @relation(fields: [customerId], references: [id])
+  vendorId          String?
+  vendor            Vendor?                @relation(fields: [vendorId], references: [id])
+  contractorId      String?
+  contractor        Contractor?            @relation(fields: [contractorId], references: [id])
+  projectId         String?
+  project           Project?               @relation(fields: [projectId], references: [id])
+  
+  description       String
+  receiptUrl        String?
+  status            String                 @default("APPROVED") // PENDING, APPROVED, REJECTED, REVERSED
+  isReversed        Boolean                @default(false)
+  reversalOfId      String?                @unique
+  reversalEntry     Transaction?           @relation("ReversalPair", fields: [reversalOfId], references: [id])
+  reversedBy        Transaction?           @relation("ReversalPair")
+
+  createdById       String
+  createdBy         User                   @relation("CreatedTransactions", fields: [createdById], references: [id])
+  approvedById      String?
+  approvedBy        User?                  @relation("ApprovedTransactions", fields: [approvedById], references: [id])
+  approvedAt        DateTime?
+  rejectionReason   String?
+
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  approvals         TransactionApproval[]
+}
+
+model TransactionApproval {
+  id            String      @id @default(uuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  approverId    String
+  status        String      // APPROVED, REJECTED
+  comments      String?
+  createdAt     DateTime    @default(now())
+}
+
+model Expense {
+  id            String      @id @default(uuid())
+  expenseNumber String      @unique
+  category      String      // Cement, Sand, Bricks, Steel, Labour, Electrical, Plumbing, Transportation, Machinery, Other
+  amount        Float       @default(0)
+  paymentMethod String      @default("CASH")
+  projectId     String?
+  project       Project?    @relation(fields: [projectId], references: [id])
+  vendorId      String?
+  vendor        Vendor?     @relation(fields: [vendorId], references: [id])
+  contractorId  String?
+  contractor    Contractor? @relation(fields: [contractorId], references: [id])
+  date          DateTime    @default(now())
+  description   String
+  billUrl       String?
+  status        String      @default("APPROVED") // PENDING, APPROVED, REJECTED
+  createdById   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Material {
+  id            String                @id @default(uuid())
+  name          String
+  category      String                // Raw Material, Finishing, Electrical, Plumbing, Structural
+  unit          String                // Bags, Ton, Metric Ton, Cu.Ft, Pcs, Liters
+  currentStock  Float                 @default(0)
+  minStockLevel Float                 @default(10)
+  unitPrice     Float                 @default(0)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  consumptions  MaterialConsumption[]
+}
+
+model MaterialConsumption {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
+  quantity    Float    @default(0)
+  date        DateTime @default(now())
+  notes       String?
+  recordedBy  String?
+  createdAt   DateTime @default(now())
+}
+
+model Attendance {
+  id           String      @id @default(uuid())
+  employeeId   String?
+  employee     Employee?   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  date         DateTime    @default(now())
+  status       String      @default("PRESENT") // PRESENT, ABSENT, HALF_DAY, LEAVE
+  checkIn      String?
+  checkOut     String?
+  hoursWorked  Float       @default(8.0)
+  notes        String?
+  createdAt    DateTime    @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO") // INFO, WARNING, SUCCESS, ALERT, LEAD, TRANSACTION
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}

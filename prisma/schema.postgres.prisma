@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  password     String
+  name         String
+  phone        String?
+  role         String    @default("EMPLOYEE")
+  status       String    @default("ACTIVE")
+  avatar       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  vendor       Vendor?
+  contractor   Contractor?
+  employee     Employee?
+  customer     Customer?
+  transactions Transaction[] @relation("CreatedTransactions")
+  approvedTxns Transaction[] @relation("ApprovedTransactions")
+  notifications Notification[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model Customer {
+  id               String        @id @default(uuid())
+  userId           String?       @unique
+  user             User?         @relation(fields: [userId], references: [id])
+  name             String
+  phone            String
+  email            String?
+  address          String?
+  city             String?
+  state            String?
+  projectType      String?
+  propertyLocation String?
+  budget           Decimal?      @default(0) @db.Decimal(14, 2)
+  requirement      String?
+  status           String        @default("ACTIVE")
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  leads            Lead[]
+  projects         Project[]
+  transactions     Transaction[]
+
+  @@map("customers")
+}
+
+model Lead {
+  id                   String           @id @default(uuid())
+  leadNumber           String           @unique
+  customerName         String
+  phone                String
+  email                String?
+  projectLocation      String
+  constructionType     String
+  budget               Decimal          @default(0) @db.Decimal(14, 2)
+  plotSize             String?
+  requirement          String?
+  preferredContactTime String?
+  status               String           @default("NEW")
+  source               String           @default("WEBSITE_INQUIRY")
+  rejectionReason      String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  customerId           String?
+  customer             Customer?        @relation(fields: [customerId], references: [id])
+
+  assignedVendorId     String?
+  assignedVendor       Vendor?          @relation(fields: [assignedVendorId], references: [id])
+
+  assignments          LeadAssignment[]
+
+  @@map("leads")
+}
+
+model LeadAssignment {
+  id              String    @id @default(uuid())
+  leadId          String
+  lead            Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  vendorId        String
+  vendor          Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  status          String    @default("PENDING")
+  assignedAt      DateTime  @default(now())
+  respondedAt     DateTime?
+  rejectionReason String?
+  createdAt       DateTime  @default(now())
+
+  @@map("lead_assignments")
+}
+
+model Vendor {
+  id              String           @id @default(uuid())
+  userId          String?          @unique
+  user            User?            @relation(fields: [userId], references: [id])
+  vendorName      String
+  companyName     String
+  contactPerson   String
+  mobileNumber    String
+  email           String
+  address         String
+  city            String
+  serviceAreas    String
+  specialization  String
+  gstNumber       String?
+  panNumber       String?
+  bankName        String?
+  accountNumber   String?
+  ifscCode        String?
+  status          String           @default("APPROVED")
+  rating          Decimal          @default(5.0) @db.Decimal(3, 1)
+  priority        Int              @default(1)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  documents       VendorDocument[]
+  assignedLeads   Lead[]
+  leadAssignments LeadAssignment[]
+  projects        Project[]
+  transactions    Transaction[]
+  expenses        Expense[]
+
+  @@map("vendors")
+}
+
+model VendorDocument {
+  id          String    @id @default(uuid())
+  vendorId    String
+  vendor      Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  docType     String
+  title       String
+  fileUrl     String
+  status      String    @default("VERIFIED")
+  verifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("vendor_documents")
+}
+
+model Contractor {
+  id             String        @id @default(uuid())
+  userId         String?       @unique
+  user           User?         @relation(fields: [userId], references: [id])
+  name           String
+  companyName    String?
+  phone          String
+  email          String?
+  specialization String
+  labourCount    Int           @default(5)
+  dailyRate      Decimal       @default(0) @db.Decimal(14, 2)
+  status         String        @default("ACTIVE")
+  address        String?
+  city           String?
+  bankDetails    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  projects       Project[]
+  transactions   Transaction[]
+  expenses       Expense[]
+  attendances    Attendance[]
+
+  @@map("contractors")
+}
+
+model Employee {
+  id            String       @id @default(uuid())
+  userId        String?      @unique
+  user          User?        @relation(fields: [userId], references: [id])
+  name          String
+  email         String       @unique
+  phone         String
+  roleTitle     String
+  department    String
+  salary        Decimal      @default(0) @db.Decimal(14, 2)
+  joiningDate   DateTime     @default(now())
+  status        String       @default("ACTIVE")
+  address       String?
+  city          String?
+  panNumber     String?
+  aadharNumber  String?
+  advanceAmount Decimal      @default(0) @db.Decimal(14, 2)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  attendances   Attendance[]
+
+  @@map("employees")
+}
+
+model Project {
+  id                     String                @id @default(uuid())
+  projectCode            String                @unique
+  name                   String
+  customerId             String?
+  customer               Customer?             @relation(fields: [customerId], references: [id])
+  vendorId               String?
+  vendor                 Vendor?               @relation(fields: [vendorId], references: [id])
+  contractorId           String?
+  contractor             Contractor?           @relation(fields: [contractorId], references: [id])
+  location               String
+  projectType            String
+  budget                 Decimal               @default(0) @db.Decimal(14, 2)
+  startDate              DateTime?
+  expectedCompletionDate DateTime?
+  actualCompletionDate   DateTime?
+  status                 String                @default("STARTED")
+  progressPercent        Int                   @default(0)
+  description            String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  progressLogs           ProjectProgress[]
+  transactions           Transaction[]
+  expenses               Expense[]
+  materialConsumptions   MaterialConsumption[]
+
+  @@map("projects")
+}
+
+model ProjectProgress {
+  id           String    @id @default(uuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date         DateTime  @default(now())
+  title        String
+  description  String
+  percentage   Int       @default(0)
+  sitePhotos   String?
+  materialUsed String?
+  labourCount  Int       @default(0)
+  weather      String?
+  notes        String?
+  reportedBy   String?
+  createdAt    DateTime  @default(now())
+
+  @@map("project_progress")
+}
+
+model Account {
+  id            String        @id @default(uuid())
+  name          String
+  type          String
+  accountNumber String?
+  bankName      String?
+  balance       Decimal       @default(0) @db.Decimal(14, 2)
+  isDefault     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  transactions  Transaction[]
+
+  @@map("accounts")
+}
+
+model Transaction {
+  id                String                 @id @default(uuid())
+  transactionNumber String                 @unique
+  type              String
+  category          String
+  amount            Decimal                @default(0) @db.Decimal(14, 2)
+  paymentMethod     String
+  accountId         String
+  account           Account                @relation(fields: [accountId], references: [id])
+  
+  customerId        String?
+  customer          Customer?              @relation(fields: [customerId], references: [id])
+  vendorId          String?
+  vendor            Vendor?                @relation(fields: [vendorId], references: [id])
+  contractorId      String?
+  contractor        Contractor?            @relation(fields: [contractorId], references: [id])
+  projectId         String?
+  project           Project?               @relation(fields: [projectId], references: [id])
+  
+  description       String
+  receiptUrl        String?
+  status            String                 @default("APPROVED")
+  isReversed        Boolean                @default(false)
+  reversalOfId      String?                @unique
+  reversalEntry     Transaction?           @relation("ReversalPair", fields: [reversalOfId], references: [id])
+  reversedBy        Transaction?           @relation("ReversalPair")
+
+  createdById       String
+  createdBy         User                   @relation("CreatedTransactions", fields: [createdById], references: [id])
+  approvedById      String?
+  approvedBy        User?                  @relation("ApprovedTransactions", fields: [approvedById], references: [id])
+  approvedAt        DateTime?
+  rejectionReason   String?
+
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  approvals         TransactionApproval[]
+
+  @@map("transactions")
+}
+
+model TransactionApproval {
+  id            String      @id @default(uuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  approverId    String
+  status        String
+  comments      String?
+  createdAt     DateTime    @default(now())
+
+  @@map("transaction_approvals")
+}
+
+model Expense {
+  id            String      @id @default(uuid())
+  expenseNumber String      @unique
+  category      String
+  amount        Decimal     @default(0) @db.Decimal(14, 2)
+  paymentMethod String      @default("CASH")
+  projectId     String?
+  project       Project?    @relation(fields: [projectId], references: [id])
+  vendorId      String?
+  vendor        Vendor?     @relation(fields: [vendorId], references: [id])
+  contractorId  String?
+  contractor    Contractor? @relation(fields: [contractorId], references: [id])
+  date          DateTime    @default(now())
+  description   String
+  billUrl       String?
+  status        String      @default("APPROVED")
+  createdById   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("expenses")
+}
+
+model Material {
+  id            String                @id @default(uuid())
+  name          String
+  category      String
+  unit          String
+  currentStock  Decimal               @default(0) @db.Decimal(10, 2)
+  minStockLevel Decimal               @default(10) @db.Decimal(10, 2)
+  unitPrice     Decimal               @default(0) @db.Decimal(14, 2)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  consumptions  MaterialConsumption[]
+
+  @@map("materials")
+}
+
+model MaterialConsumption {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
+  quantity    Decimal  @default(0) @db.Decimal(10, 2)
+  date        DateTime @default(now())
+  notes       String?
+  recordedBy  String?
+  createdAt   DateTime @default(now())
+
+  @@map("material_consumptions")
+}
+
+model Attendance {
+  id           String      @id @default(uuid())
+  employeeId   String?
+  employee     Employee?   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  date         DateTime    @default(now())
+  status       String      @default("PRESENT")
+  checkIn      String?
+  checkOut     String?
+  hoursWorked  Decimal     @default(8.0) @db.Decimal(4, 1)
+  notes        String?
+  createdAt    DateTime    @default(now())
+
+  @@map("attendances")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO")
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
